@@ -3,18 +3,32 @@ import { MapScene } from './map/MapScene.js';
 import { BattleScene } from './battle/BattleScene.js';
 
 const canvas = document.getElementById('game-canvas');
-const game = new Game(canvas);
 
-// Make game globally accessible for debugging
-window.game = game;
+function initGame() {
+    const game = new Game(canvas);
+    window.game = game;
 
-const mapScene = new MapScene(game);
-const battleScene = new BattleScene(game);
+    const mapScene = new MapScene(game);
+    const battleScene = new BattleScene(game);
 
-game.registerScene('map', mapScene);
-game.registerScene('battle', battleScene);
+    game.registerScene('map', mapScene);
+    game.registerScene('battle', battleScene);
 
-game.switchScene('map');
-game.start();
+    game.switchScene('map');
+    game.start();
 
-console.log('Game started!');
+    return game;
+}
+
+let game = initGame();
+
+// R key to reset game
+window.addEventListener('keydown', (e) => {
+    if (e.code === 'KeyR') {
+        game.loop.stop();
+        game = initGame();
+        console.log('Game reset!');
+    }
+});
+
+console.log('Game started! Press R to reset.');
