@@ -4,6 +4,7 @@ import { BattleHUD } from '../ui/BattleHUD.js';
 import { BattleMenu } from '../ui/BattleMenu.js';
 import { TargetSelector } from '../ui/TargetSelector.js';
 import { ABILITIES } from '../data/AbilityDefinitions.js';
+import { MiniMap } from '../ui/MiniMap.js';
 
 export class BattleScene {
     constructor(game) {
@@ -13,6 +14,8 @@ export class BattleScene {
         this.hud = new BattleHUD(game.width);
         this.menu = new BattleMenu();
         this.targetSelector = new TargetSelector();
+
+        this.miniMap = new MiniMap();
 
         // Victory/defeat screen
         this.endTimer = 0;
@@ -37,6 +40,7 @@ export class BattleScene {
 
         this.manager.update(dt);
         this.targetSelector.update(dt);
+        this.miniMap.update(dt);
 
         // Handle state-specific input
         switch (this.manager.state) {
@@ -126,6 +130,9 @@ export class BattleScene {
 
         // Target selector
         this.targetSelector.render(ctx);
+
+        // Mini map
+        this.miniMap.render(ctx, this.manager.mapScene, this.manager.playerTileX, this.manager.playerTileY);
 
         // State overlays
         if (this.manager.state === BattleState.STARTING) {

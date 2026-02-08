@@ -2,8 +2,9 @@ import { TileMap } from './TileMap.js';
 import { Camera } from './Camera.js';
 import { MapPlayer } from './MapPlayer.js';
 import { MapEnemy } from './MapEnemy.js';
-import { PLAYER_START, ENEMY_SPAWNS, TILE_SIZE } from '../data/MapData.js';
+import { PLAYER_START, ENEMY_SPAWNS, TILE_SIZE, MAP_TILES, MAP_WIDTH, MAP_HEIGHT, TILE_WALKABLE } from '../data/MapData.js';
 import { getRandomFormation } from '../data/EnemyFormations.js';
+import { GameConfig } from '../data/GameConfig.js';
 
 export class MapScene {
     constructor(game) {
@@ -22,7 +23,56 @@ export class MapScene {
     }
 
     _spawnEnemies() {
-        this.enemies = ENEMY_SPAWNS.map((spawn, i) => new MapEnemy(spawn, `enemy_${i}`));
+        const density = GameConfig.enemyDensity;
+        const enemies = [];
+        let idCounter = 0;
+
+        // 基礎敵人生成（根據密度篩選）
+        for (const spawn of ENEMY_SPAWNS) {
+            if (density < 1) {
+                // 密度 < 1：隨機跳過部分敵人
+                if (Math.random() > density) continue;
+            }
+            enemies.push(new MapEnemy(spawn, `enemy_${idCounter++}`));
+        }
+
+        // 密度 > 1：在可行走磁磚上額外生成敵人
+        if (density > 1) {
+            const extraCount = Math.floor(ENEMY_SPAWNS.length * (density - 1));
+            const enemyTypes = ['goblin', 'skeleton', 'slime'];
+            const walkableTiles = [];
+
+            // 收集所有可行走且不在玩家起點附近的磁磚
+            for (let y = 0; y < MAP_HEIGHT; y++) {
+                for (let x = 0; x < MAP_WIDTH; x++) {
+                    const tile = MAP_TILES[y][x];
+                    if (!TILE_WALKABLE[tile]) continue;
+                    // 排除玩家起點附近 3 格
+                    const dist = Math.abs(x - PLAYER_START.x) + Math.abs(y - PLAYER_START.y);
+                    if (dist < 3) continue;
+                    // 排除已有敵人的位置
+                    const occupied = enemies.some(e => e.tileX === x && e.tileY === y);
+                    if (occupied) continue;
+                    walkableTiles.push({ x, y });
+                }
+            }
+
+            // 隨機選取位置生成額外敵人
+            for (let i = 0; i < extraCount && walkableTiles.length > 0; i++) {
+                const idx = Math.floor(Math.random() * walkableTiles.length);
+                const tile = walkableTiles.splice(idx, 1)[0];
+                const type = enemyTypes[Math.floor(Math.random() * enemyTypes.length)];
+                const spawn = {
+                    x: tile.x,
+                    y: tile.y,
+                    type,
+                    patrol: [{ x: tile.x, y: tile.y }],
+                };
+                enemies.push(new MapEnemy(spawn, `enemy_${idCounter++}`));
+            }
+        }
+
+        this.enemies = enemies;
     }
 
     enter(data) {
