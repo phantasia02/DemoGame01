@@ -32,8 +32,8 @@ export class BattleManager {
         this.mapScene = null;
         this.playerTileX = 0;
         this.playerTileY = 0;
-        this.reinforceCheckTimer = 0;
-        this.reinforceInterval = 3000; // check every 3s
+        this.approachDetectRange = 12; // Manhattan distance to detect enemies
+        this.approachingEnemies = []; // enemies currently moving toward battle
 
         // Battle result
         this.totalExp = 0;
@@ -76,7 +76,10 @@ export class BattleManager {
         this.mapScene = battleData.mapScene || null;
         this.playerTileX = battleData.playerTileX || 0;
         this.playerTileY = battleData.playerTileY || 0;
-        this.reinforceCheckTimer = 0;
+        this.approachingEnemies = [];
+
+        // Start approaching for nearby enemies
+        this._initApproachingEnemies();
 
         this.addLog('戰鬥開始！');
     }
@@ -286,24 +289,37 @@ export class BattleManager {
         }
     }
 
+    _initApproachingEnemies() {
+        if (!this.mapScene) return;
+        for (const enemy of this.mapScene.enemies) {
+            if (!enemy.alive || enemy.state === 'in_battle' || enemy.state === 'dead') continue;
+            const dist = enemy.distanceTo(this.playerTileX, this.playerTileY);
+            if (dist <= this.approachDetectRange && dist > 0) {
+                enemy.startApproaching();
+                this.approachingEnemies.push(enemy);
+            }
+        }
+    }
+
     _checkReinforcements(dt) {
         if (!this.mapScene) return;
 
-        // Update map enemies' ATB during battle
-        for (const enemy of this.mapScene.enemies) {
-            if (enemy.alive && enemy.state !== 'in_battle' && enemy.state !== 'dead') {
-                const fillRate = (enemy.atbSpeed / 255) * 0.8 * (dt / 16.67);
-                enemy.atbValue = Math.min(enemy.atbMax, enemy.atbValue + fillRate);
-                enemy.atbReady = enemy.atbValue >= enemy.atbMax;
-            }
+        // Move approaching enemies toward battle position
+        const tileMap = this.mapScene.tileMap;
+
+        for (const enemy of this.approachingEnemies) {
+            if (!enemy.alive) continue;
+            enemy.moveTowardBattle(dt, this.playerTileX, this.playerTileY, tileMap);
         }
 
-        this.reinforceCheckTimer += dt;
-        if (this.reinforceCheckTimer < this.reinforceInterval) return;
-        this.reinforceCheckTimer = 0;
-
+        // Check for enemies that have arrived
         const reinforcements = this.mapScene.getReadyReinforcements(this.playerTileX, this.playerTileY);
         if (reinforcements.length === 0) return;
+
+        // Remove arrived enemies from approaching list
+        this.approachingEnemies = this.approachingEnemies.filter(
+            e => e.state === 'approaching_battle' && !e.readyToJoinBattle
+        );
 
         for (const r of reinforcements) {
             const units = this.squadManager.addEnemySquad(r.direction, r.formation);

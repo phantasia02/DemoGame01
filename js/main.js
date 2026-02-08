@@ -5,7 +5,9 @@ import { GameConfig } from './data/GameConfig.js';
 
 const canvas = document.getElementById('game-canvas');
 
-function initGame() {
+async function initGame() {
+    await GameConfig.load();
+
     const game = new Game(canvas);
     window.game = game;
 
@@ -21,13 +23,14 @@ function initGame() {
     return game;
 }
 
-let game = initGame();
+let game = null;
+initGame().then(g => { game = g; });
 
 // R key to reset game
-window.addEventListener('keydown', (e) => {
+window.addEventListener('keydown', async (e) => {
     if (e.code === 'KeyR') {
-        game.loop.stop();
-        game = initGame();
+        if (game) game.loop.stop();
+        game = await initGame();
         console.log('Game reset!');
     }
 });
@@ -35,5 +38,5 @@ window.addEventListener('keydown', (e) => {
 // 將設定暴露到 window，方便在控制台調整
 window.GameConfig = GameConfig;
 
-console.log('Game started! Press R to reset.');
-console.log('調整敵人密度: GameConfig.enemyDensity = 0.5~2.0，然後按 R 重置生效');
+console.log('Game starting... Press R to reset.');
+console.log('修改 config.json 中的 enemyDensity (0.5~2.0)，然後按 R 重置生效');

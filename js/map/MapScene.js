@@ -83,13 +83,15 @@ export class MapScene {
                 if (enemy) enemy.die();
             }
         }
-        // Reset ATB for all enemies when returning to map
+        // Reset state for all enemies when returning to map
         for (const e of this.enemies) {
-            if (e.alive && e.state === 'in_battle') {
+            if (e.alive && (e.state === 'in_battle' || e.state === 'approaching_battle')) {
                 e.state = 'patrol';
             }
             e.atbValue = 0;
             e.atbReady = false;
+            e.readyToJoinBattle = false;
+            e.approachTimer = 0;
         }
     }
 
@@ -137,17 +139,17 @@ export class MapScene {
     }
 
     /**
-     * Called by BattleScene to check for reinforcements
+     * Called by BattleManager to check for reinforcements
+     * Now checks readyToJoinBattle flag instead of ATB
      */
     getReadyReinforcements(playerTileX, playerTileY) {
         const reinforcements = [];
         for (const enemy of this.enemies) {
-            if (enemy.alive && enemy.atbReady && enemy.state !== 'in_battle') {
+            if (enemy.alive && enemy.readyToJoinBattle && enemy.state === 'approaching_battle') {
                 const dir = enemy.getDirectionRelativeToPlayer(playerTileX, playerTileY);
                 const formation = getRandomFormation(enemy.type);
                 enemy.enterBattle();
-                enemy.atbValue = 0;
-                enemy.atbReady = false;
+                enemy.readyToJoinBattle = false;
                 reinforcements.push({
                     direction: dir,
                     formation,

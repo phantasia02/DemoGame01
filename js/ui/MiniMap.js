@@ -56,11 +56,19 @@ export class MiniMap {
                 // 已在戰鬥中：灰色點
                 ctx.fillStyle = '#888';
                 this._drawDot(ctx, dotX, dotY, dotR);
-            } else if (enemy.atbValue >= enemy.atbMax * 0.8) {
-                // ATB 快滿：黃色閃爍
-                const blink = Math.sin(this.blinkTimer * 0.008) > 0;
-                ctx.fillStyle = blink ? '#ffff00' : '#ff8800';
-                this._drawDot(ctx, dotX, dotY, dotR + 0.5);
+            } else if (enemy.state === 'approaching_battle') {
+                // 正在接近戰鬥位置
+                const dist = enemy.distanceTo(playerTileX, playerTileY);
+                if (dist <= 2) {
+                    // 即將到達：黃色閃爍
+                    const blink = Math.sin(this.blinkTimer * 0.01) > 0;
+                    ctx.fillStyle = blink ? '#ffff00' : '#ff8800';
+                    this._drawDot(ctx, dotX, dotY, dotR + 0.5);
+                } else {
+                    // 移動中：橙色
+                    ctx.fillStyle = '#ff8800';
+                    this._drawDot(ctx, dotX, dotY, dotR);
+                }
             } else {
                 // 一般存活敵人：紅色點
                 ctx.fillStyle = '#e74c3c';

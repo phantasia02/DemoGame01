@@ -6,6 +6,7 @@ const EnemyState = {
     CHASE: 'chase',
     RETURNING: 'returning',
     IN_BATTLE: 'in_battle',
+    APPROACHING_BATTLE: 'approaching_battle',
     DEAD: 'dead',
 };
 
@@ -31,12 +32,17 @@ export class MapEnemy {
         this.detectRange = 5; // tiles
         this.chaseRange = 7; // tiles
 
-        // ATB for joining battles
+        // ATB for joining battles (kept for backward compat, but no longer primary)
         this.atbValue = 0;
         this.atbMax = 100;
         this.atbReady = false;
         const def = ENEMY_UNITS[this.type];
         this.atbSpeed = def ? def.speed : 80;
+
+        // Approaching battle state
+        this.approachTimer = 0;
+        this.approachInterval = 500; // ms per tile movement
+        this.readyToJoinBattle = false;
 
         // Patrol wait timer
         this.waitTimer = 0;
@@ -63,11 +69,10 @@ export class MapEnemy {
             return;
         }
 
-        // If battle is active and not in battle, accumulate ATB
-        if (battleActive && this.state !== EnemyState.IN_BATTLE) {
-            const fillRate = (this.atbSpeed / 255) * 0.8 * (dt / 16.67);
-            this.atbValue = Math.min(this.atbMax, this.atbValue + fillRate);
-            this.atbReady = this.atbValue >= this.atbMax;
+        // If approaching battle, handle movement toward battle position
+        if (this.state === EnemyState.APPROACHING_BATTLE) {
+            this._interpolateMove(dt);
+            return;
         }
 
         const distToPlayer = this._tileDistance(playerTileX, playerTileY);
@@ -101,6 +106,55 @@ export class MapEnemy {
                 this._doReturn(dt, tileMap);
                 break;
         }
+    }
+
+    /**
+     * Start approaching the player's battle position
+     */
+    startApproaching() {
+        if (this.state === EnemyState.IN_BATTLE ||
+            this.state === EnemyState.DEAD ||
+            this.state === EnemyState.APPROACHING_BATTLE) return;
+        this.state = EnemyState.APPROACHING_BATTLE;
+        this.approachTimer = 0;
+        this.readyToJoinBattle = false;
+    }
+
+    /**
+     * Move one tile toward the battle position (called by BattleManager)
+     * Returns true if enemy has arrived at the target
+     */
+    moveTowardBattle(dt, targetTileX, targetTileY, tileMap) {
+        if (this.state !== EnemyState.APPROACHING_BATTLE) return false;
+
+        // If already at target, mark as ready
+        if (this.tileX === targetTileX && this.tileY === targetTileY) {
+            this.readyToJoinBattle = true;
+            return true;
+        }
+
+        // Accumulate timer for step-by-step movement
+        this.approachTimer += dt;
+        if (this.approachTimer < this.approachInterval) return false;
+        this.approachTimer -= this.approachInterval;
+
+        // Move one tile toward target
+        this._moveTowardTile(targetTileX, targetTileY, tileMap);
+
+        // Check arrival after move
+        if (this.tileX === targetTileX && this.tileY === targetTileY) {
+            this.readyToJoinBattle = true;
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Get Manhattan distance to a tile
+     */
+    distanceTo(tx, ty) {
+        return this._tileDistance(tx, ty);
     }
 
     _doPatrol(dt, tileMap) {
@@ -204,6 +258,7 @@ export class MapEnemy {
     checkCollision(playerTileX, playerTileY) {
         return this.alive &&
             this.state !== EnemyState.IN_BATTLE &&
+            this.state !== EnemyState.APPROACHING_BATTLE &&
             this.state !== EnemyState.DEAD &&
             this.tileX === playerTileX &&
             this.tileY === playerTileY;
@@ -269,8 +324,14 @@ export class MapEnemy {
             ctx.fillRect(x - halfSize + 2, y + bobY, this.size - 4, halfSize);
         }
 
-        // Eyes
-        ctx.fillStyle = this.state === EnemyState.CHASE ? '#ff0' : '#fff';
+        // Eyes - approaching enemies have orange eyes
+        if (this.state === EnemyState.APPROACHING_BATTLE) {
+            ctx.fillStyle = '#f90';
+        } else if (this.state === EnemyState.CHASE) {
+            ctx.fillStyle = '#ff0';
+        } else {
+            ctx.fillStyle = '#fff';
+        }
         ctx.fillRect(x - 5, y - 4 + bobY, 3, 3);
         ctx.fillRect(x + 3, y - 4 + bobY, 3, 3);
         ctx.fillStyle = '#000';
@@ -285,16 +346,12 @@ export class MapEnemy {
             ctx.fillText('!', x, y - halfSize - 4 + bobY);
         }
 
-        // ATB bar when battle is active and not in battle
-        if (this.atbValue > 0 && this.state !== EnemyState.IN_BATTLE) {
-            const barWidth = this.size;
-            const barHeight = 3;
-            const barX = x - halfSize;
-            const barY = y + halfSize + 6;
-            ctx.fillStyle = '#333';
-            ctx.fillRect(barX, barY, barWidth, barHeight);
-            ctx.fillStyle = this.atbReady ? '#ff0' : '#f90';
-            ctx.fillRect(barX, barY, barWidth * (this.atbValue / this.atbMax), barHeight);
+        // Approaching indicator
+        if (this.state === EnemyState.APPROACHING_BATTLE) {
+            ctx.fillStyle = '#f90';
+            ctx.font = 'bold 12px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText('!!', x, y - halfSize - 4 + bobY);
         }
     }
 }
